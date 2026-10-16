@@ -1,123 +1,241 @@
-import java.util.Scanner;
+import java.util.*;
+import java.util.stream.Collectors;
+class AdaptiveQuizPlatform {
 
-public class AdaptiveQuizEngine {
+    // ==========================================
+    // 1. ENGINE ENTITY & ADAPTIVE LOGIC
+    // ==========================================
+    public static class Question {
+        private String id;
+        private int moduleNumber;
+        private int difficultyLevel; // 1: Easy, 2: Medium, 3: Hard
+        private String prompt;
+        private String[] options;
+        private int correctIndex;
+        private String explanation;
 
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in); // [MODULE 1: Console I/O Scanner]
+        public Question(String id, int moduleNumber, int difficultyLevel, String prompt, String[] options, int correctIndex, String explanation) {
+            this.id = id;
+            this.moduleNumber = moduleNumber;
+            this.difficultyLevel = difficultyLevel;
+            this.prompt = prompt;
+            this.options = options;
+            this.correctIndex = correctIndex;
+            this.explanation = explanation;
+        }
 
-        // [MODULE 3: 1D Arrays - Questions, Options, and Correct Answer Keys]
-        String[] questions = {
-                "Q1: What is the size of an int data type in Java?",
-                "Q2: Which operator is used for bitwise AND in Java?",
-                "Q3: What is the default value of an uninitialized local variable?"
-        };
+        public boolean validateAnswer(int selectedIndex) {
+            return this.correctIndex == selectedIndex;
+        }
 
-        String[] optionsQ1 = { "1. 2 Bytes", "2. 4 Bytes", "3. 8 Bytes", "4. Depends on OS" };
-        String[] optionsQ2 = { "1. &&", "2. &", "3. |", "4. ^" };
-        String[] optionsQ3 = { "1. 0", "2. null", "3. Garbage value", "4. No default value (Compile Error)" };
+        public int getModuleNumber() { return moduleNumber; }
+        public int getDifficultyLevel() { return difficultyLevel; }
+        public String getPrompt() { return prompt; }
+        public String[] getOptions() { return options; }
+        public String getExplanation() { return explanation; }
+    }
 
-        int[] correctAnswers = { 2, 2, 4 }; // [MODULE 3: 1D Array of Correct Option Keys]
-        int totalQuestions = questions.length;
-        int score = 0; // [MODULE 1: Primitive Variables]
+    public static class AdaptiveQuizEngine {
+        private List<Question> questionBank;
+        private int currentDifficulty = 1; // Starts at Easy
+        private int consecutiveCorrect = 0;
+        private int consecutiveWrong = 0;
+        private Set<String> askedQuestionIds = new HashSet<>();
 
-        // [MODULE 3: Method Calling]
-        printHeader("JAVA FOUNDATIONS ADAPTIVE QUIZ ENGINE");
+        public AdaptiveQuizEngine(List<Question> questionBank) {
+            this.questionBank = questionBank;
+        }
 
-        // [MODULE 2: Iteration - For Loop through Questions]
-        for (int i = 0; i < totalQuestions; i++) {
-            System.out.printf("%n[Question %d of %d]%n", (i + 1), totalQuestions); // [MODULE 1: Formatted Output]
+        public Question getNextQuestion(int moduleNumber) {
+            List<Question> eligible = questionBank.stream()
+                .filter(q -> q.getModuleNumber() == moduleNumber)
+                .filter(q -> q.getDifficultyLevel() == currentDifficulty)
+                .filter(q -> !askedQuestionIds.contains(q.getPrompt()))
+                .collect(Collectors.toList());
 
-            // Select corresponding 1D options array
-            String[] currentOpts = (i == 0) ? optionsQ1 : (i == 1) ? optionsQ2 : optionsQ3;
-
-            // [MODULE 3: Method Calling]
-            displayQuestion(questions[i], currentOpts);
-
-            System.out.print("Enter your answer (1-4): ");
-
-            // [MODULE 3: Method Calling & MODULE 2: Input Validation Control Loop]
-            int userChoice = readValidInput(scanner);
-
-            // [MODULE 3: Method Calling & MODULE 1: Relational Operator Evaluation]
-            boolean isCorrect = evaluateAnswer(userChoice, correctAnswers[i]);
-
-            // [MODULE 2: Selection Control Flow - if-else]
-            if (isCorrect) {
-                System.out.println("Result: Correct!");
-                score++; // [MODULE 1: Unary Increment Operator]
-            } else {
-                System.out.printf("Result: Incorrect! Correct answer was option %d.%n", correctAnswers[i]);
+            // Fallback if current difficulty pool is exhausted
+            if (eligible.isEmpty()) {
+                eligible = questionBank.stream()
+                    .filter(q -> q.getModuleNumber() == moduleNumber)
+                    .filter(q -> !askedQuestionIds.contains(q.getPrompt()))
+                    .collect(Collectors.toList());
             }
+
+            if (eligible.isEmpty()) return null;
+
+            Random rand = new Random();
+            Question selected = eligible.get(rand.nextInt(eligible.size()));
+            askedQuestionIds.add(selected.getPrompt());
+            return selected;
         }
 
-        // [MODULE 3: Method Calling for Final Performance Calculation]
-        displayPerformanceSummary(score, totalQuestions);
-
-        scanner.close(); // Clean resource release
-    }
-
-    // [MODULE 3: Creating Methods - Display Question & Options]
-    public static void displayQuestion(String question, String[] opts) {
-        System.out.println(question);
-        for (String option : opts) { // [MODULE 2: For-each Loop]
-            System.out.println("  " + option);
-        }
-    }
-
-    // [MODULE 3: Creating Methods & MODULE 2: While Loop with Input Validation]
-    public static int readValidInput(Scanner scanner) {
-        int input = -1;
-        while (true) {
-            if (scanner.hasNextInt()) { // [MODULE 2: Conditional Check]
-                input = scanner.nextInt();
-                if (input >= 1 && input <= 4) { // [MODULE 1: Logical AND Operator]
-                    break; // [MODULE 2: Break Statement]
+        public void recordResponse(boolean isCorrect) {
+            if (isCorrect) {
+                consecutiveCorrect++;
+                consecutiveWrong = 0;
+                if (consecutiveCorrect >= 2 && currentDifficulty < 3) {
+                    currentDifficulty++; // Step up difficulty
+                    consecutiveCorrect = 0;
                 }
             } else {
-                scanner.next(); // Clear invalid token
+                consecutiveWrong++;
+                consecutiveCorrect = 0;
+                if (consecutiveWrong >= 1 && currentDifficulty > 1) {
+                    currentDifficulty--; // Step down difficulty
+                    consecutiveWrong = 0;
+                }
             }
-            System.out.print("Invalid choice. Please enter a number between 1 and 4: ");
         }
-        return input;
-    }
-
-    // [MODULE 3: Creating Methods & MODULE 1: Relational Operator Evaluation]
-    public static boolean evaluateAnswer(int userChoice, int correctAnswer) {
-        return userChoice == correctAnswer; // Returns boolean calculation
-    }
-
-    // [MODULE 3: Creating Methods & MODULE 1: Formatted Console Output]
-    public static void printHeader(String title) {
-        System.out.println("==================================================");
-        System.out.printf("   %s%n", title); // [MODULE 1: Formatted String Printing]
-        System.out.println("==================================================");
-    }
-
-    // [MODULE 3: Creating Methods, MODULE 1: Explicit Typecasting, MODULE 2:
-    // If-Else-If Ladder]
-    public static void displayPerformanceSummary(int score, int total) {
-        // [MODULE 1: Explicit Double Typecasting & Expression Evaluation]
-        double percentage = ((double) score / total) * 100.0;
-
-        System.out.println("\n--------------------------------------------------");
-        System.out.println("                 EXAM RESULTS                     ");
-        System.out.println("--------------------------------------------------");
-        System.out.printf("Total Questions : %d%n", total);
-        System.out.printf("Correct Answers : %d%n", score);
-        System.out.printf("Final Score     : %.2f%%%n", percentage); // [MODULE 1: Formatted Float Output]
-
-        // [MODULE 2: Nested Conditional Ladder for Grade Determination]
-        System.out.print("Grade Status    : ");
-        if (percentage >= 85.0) {
-            System.out.println("EXCELLENT (Grade A)");
-        } else if (percentage >= 60.0) {
-            System.out.println("GOOD (Grade B)");
-        } else if (percentage >= 40.0) {
-            System.out.println("PASS (Grade C)");
-        } else {
-            System.out.println("NEEDS IMPROVEMENT (Fail)");
+        
+        public int getCurrentDifficulty() {
+            return currentDifficulty;
         }
-        System.out.println("--------------------------------------------------");
+    }
 
+    // ==========================================
+    // 2. MODULE DEMONSTRATIONS & HELPERS
+    // ==========================================
+    
+    // Interface for Module 4 OOP Demonstration
+    interface Renderable {
+        void render();
+    }
+
+    public static class Shape implements Renderable {
+        private String name;
+        public Shape(String name) { this.name = name; }
+        @Override
+        public void render() { System.out.println("Rendering shape: " + name); }
+    }
+
+    // Helper for Module 3 Recursion
+    private static int recursiveFactorial(int n) {
+        if (n <= 1) return 1; // Base case
+        return n * recursiveFactorial(n - 1); // Recursive case
+    }
+
+    // Helper for Module 3 Matrix Addition
+    private static int[][] addMatrices(int[][] a, int[][] b) {
+        int rows = a.length;
+        int cols = a[0].length;
+        int[][] res = new int[rows][cols];
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                res[i][j] = a[i][j] + b[i][j];
+            }
+        }
+        return res;
+    }
+
+    // Sample question bank generator for engine simulation
+    private static List<Question> createSampleQuestionBank() {
+        List<Question> bank = new ArrayList<>();
+        // Module 1 Questions
+        bank.add(new Question("m1_e1", 1, 1, "What is the default value of an uninitialized int field in Java?", new String[]{"0", "null", "1", "Undefined"}, 0, "Primitive int defaults to 0."));
+        bank.add(new Question("m1_m1", 1, 2, "Which operator has the highest precedence among arithmetic operators?", new String[]{"Addition", "Multiplication/Division", "Assignment", "Subtraction"}, 1, "Multiplication and division take precedence over addition and subtraction."));
+        bank.add(new Question("m1_h1", 1, 3, "What is the precise output of (double) 5 / 2 in Java?", new String[]{"2.0", "2.5", "2", "Compilation Error"}, 1, "Casting 5 to double forces floating-point division yielding 2.5."));
+        return bank;
+    }
+
+    // ==========================================
+    // 3. MAIN EXECUTION DRIVER
+    // ==========================================
+    public static void main(String[] args) {
+        System.out.println("==================================================");
+        System.out.println("  ADAPTIVE QUIZ & EXAM ENGINE - UNIFIED CO DEMO");
+        System.out.println("==================================================\n");
+
+        // --- Module 1 Demo: Foundations & Typecasting ---
+        System.out.println("--- [Module 1] Foundations & Typecasting ---");
+        int rawInput = 25;
+        double computedVal = (double) rawInput / 3.0;
+        System.out.printf("Formatted Division Result (%.2f) from raw input: %d%n%n", computedVal, rawInput);
+
+        // --- Module 2 Demo: Control Flow ---
+        System.out.println("--- [Module 2] Control Flow & Iteration ---");
+        int score = 85;
+        char grade;
+        switch (score / 10) {
+            case 10: case 9: grade = 'A'; break;
+            case 8: grade = 'B'; break;
+            default: grade = 'C'; break;
+        }
+        System.out.println("Score: " + score + " -> Assigned Grade: " + grade);
+        System.out.print("Loop with continue & break: ");
+        for (int i = 1; i <= 10; i++) {
+            if (i % 2 == 0) continue; // Skip evens
+            if (i > 7) break;         // Terminate early
+            System.out.print(i + " ");
+        }
+        System.out.println("\n");
+
+        // --- Module 3 Demo: Recursion & Arrays ---
+        System.out.println("--- [Module 3] Recursion & Matrix Arithmetic ---");
+        int factNum = 5;
+        System.out.println("Factorial of " + factNum + " (Recursive): " + recursiveFactorial(factNum));
+        
+        int[][] matrixA = {{1, 2}, {3, 4}};
+        int[][] matrixB = {{5, 6}, {7, 8}};
+        int[][] matrixSum = addMatrices(matrixA, matrixB);
+        System.out.println("2D Matrix Addition Result row 0: [" + matrixSum[0][0] + ", " + matrixSum[0][1] + "]\n");
+
+        // --- Module 4 Demo: OOP & Exception Handling ---
+        System.out.println("--- [Module 4] OOP & Exception Handling ---");
+        Renderable shape = new Shape("Circle");
+        shape.render();
+        
+        try {
+            int divResult = 100 / 0; // Triggering ArithmeticException
+        } catch (ArithmeticException e) {
+            System.out.println("Caught Expected Exception: " + e.getMessage());
+        } finally {
+            System.out.println("Exception handling flow completed successfully.\n");
+        }
+
+        // --- Module 5 Demo: Strings & Algorithms ---
+        System.out.println("--- [Module 5] Strings & Sorting Algorithms ---");
+        StringBuilder sb = new StringBuilder("Java");
+        sb.append(" Engine").insert(4, " Core");
+        System.out.println("StringBuilder Output: " + sb.toString());
+        
+        int[] numbers = {42, 12, 99, 5, 23};
+        Arrays.sort(numbers);
+        int searchIdx = Arrays.binarySearch(numbers, 23);
+        System.out.println("Sorted Array: " + Arrays.toString(numbers) + " | Index of 23: " + searchIdx + "\n");
+
+        // --- Module 6 Demo: Functional Programming & Streams ---
+        System.out.println("--- [Module 6] Functional Programming & Streams ---");
+        List<String> modules = Arrays.asList("Foundations", "Control Flow", "Methods & Arrays", "OOP", "Strings & Files", "Streams");
+        List<String> processedModules = modules.stream()
+            .filter(m -> m.length() > 5)
+            .map(String::toUpperCase)
+            .sorted()
+            .collect(Collectors.toList());
+        System.out.println("Filtered & Sorted Modules: " + processedModules + "\n");
+
+        // --- Running the Adaptive Quiz Engine ---
+        System.out.println("--- [Engine Simulation] Adaptive Quiz Session ---");
+        List<Question> bank = createSampleQuestionBank();
+        AdaptiveQuizEngine engine = new AdaptiveQuizEngine(bank);
+
+        int targetModule = 1;
+        for (int step = 1; step <= 3; step++) {
+            Question q = engine.getNextQuestion(targetModule);
+            if (q == null) break;
+            
+            System.out.println("\n[Question " + step + "] (Difficulty Level: " + q.getDifficultyLevel() + ")");
+            System.out.println("Prompt: " + q.getPrompt());
+            
+            // Simulating correct answers to test dynamic difficulty step-up
+            boolean isCorrect = true; 
+            System.out.println("Simulated Student Answer: Correct -> " + isCorrect);
+            engine.recordResponse(isCorrect);
+            System.out.println("Updated Engine Difficulty Level: " + engine.getCurrentDifficulty());
+        }
+        
+        System.out.println("\n==================================================");
+        System.out.println("  ALL MODULES EXECUTED SUCCESSFULLY");
+        System.out.println("==================================================");
     }
 }
+
